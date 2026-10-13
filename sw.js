@@ -1,5 +1,5 @@
 ﻿/* 鍥涚骇鍗曡瘝 PWA Service Worker 鈥斺€?闈欐€佽祫婧愮紦瀛橈紝绂荤嚎鍙敤 */
-const CACHE = 'cet4-v10';
+const CACHE = 'cet4-v15';
 const ASSETS = [
   './',
   './index.html',
@@ -40,6 +40,11 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
+
+
+
+
 
 
 

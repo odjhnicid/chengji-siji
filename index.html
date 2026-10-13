@@ -61,6 +61,8 @@ body{
 .stamp .row{display:flex;align-items:baseline;gap:10px;margin-top:8px}
 .stamp .num{font-family:var(--serif);font-size:88px;font-weight:700;line-height:.9;color:var(--red);font-variant-numeric:tabular-nums}
 .stamp .unit{font-family:var(--serif);font-size:20px;color:var(--ink)}
+.stamp .stat-line{font-size:12px;color:var(--ink2);margin-top:10px;border-top:1px dashed var(--line);padding-top:10px}
+.stamp .stat-line b{color:var(--red);font-variant-numeric:tabular-nums}
 .stamp .cap{margin-top:14px;font-size:13px;color:var(--ink2);border-top:1px dashed var(--line);padding-top:12px}
 
 /* 纸面板：顶部粗线 + 细分隔，非浮卡 */
@@ -83,7 +85,7 @@ body{
 .cta{
   width:100%;border:2px solid var(--ink);cursor:pointer;padding:17px;border-radius:6px;
   font-size:17px;font-weight:700;letter-spacing:.05em;color:var(--paper);background:var(--red);
-  box-shadow:4px 4px 0 var(--ink);transition:transform .15s,box-shadow .15s;
+  box-shadow:4px 4px 0 var(--ink);transition:transform .15s,box-shadow .15s;margin-bottom:18px;
 }
 .cta:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
 .cta.gray{background:var(--ink2);border-color:var(--ink)}
@@ -147,6 +149,19 @@ body{
 .countdown b{color:var(--red);font-size:20px;font-variant-numeric:tabular-nums}
 .essay .en-sentence{font-family:var(--serif);font-size:19px;line-height:1.65;padding:8px 0 10px;border-bottom:1px dashed var(--line)}
 .essay .cn-note{font-size:13px;color:var(--ink2);margin-top:10px;line-height:1.7}
+
+
+.pomo .pomo-time{font-family:var(--serif);font-size:52px;font-weight:700;text-align:center;padding:8px 0 4px;font-variant-numeric:tabular-nums}
+.pomo-set{display:flex;gap:14px;justify-content:center;margin:4px 0 14px;font-size:13px;color:var(--ink2)}
+.pomo-set label{display:flex;align-items:center;gap:4px}
+.pomo-set input{width:58px;min-height:34px;padding:4px;border:1.5px solid var(--ink);border-radius:6px;text-align:center;background:var(--card);font-size:15px}
+#pomoStatus{font-family:-apple-system,sans-serif;font-weight:500;color:var(--ink2);font-size:13px}
+#pomoStart{width:100%;margin-top:4px}
+#pomoMask{position:fixed;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(34,31,25,.45)}
+#pomoMask.show{display:flex}
+.pomo-pop{width:86%;max-width:340px;background:var(--card);border:2px solid var(--ink);border-radius:10px;padding:26px 22px;text-align:center;box-shadow:5px 5px 0 var(--line)}
+.pomo-pop .em{font-size:40px;margin-bottom:10px}
+.pomo-pop .msg{font-size:16px;line-height:1.75;margin-bottom:18px}
 
 /* ---------- 列表页 ---------- */
 .search{width:100%;min-height:48px;padding:12px 16px;border-radius:6px;border:1.5px solid var(--ink);
@@ -219,6 +234,7 @@ input[type=range]{width:100%;margin:14px 0 6px;accent-color:var(--red)}
       <div class="lab">连续学习</div>
       <div class="row"><span class="num" id="streakNum">0</span><span class="unit">天</span></div>
       <div class="cap">坚持是最稳妥的捷径，今天也别断。</div>
+      <div class="stat-line">累计学习 <b id="studyTotal">0 分钟</b> · 今日 <b id="studyToday">0 分钟</b></div>
     </div>
     <div class="panel">
       <h3 style="display:flex;justify-content:space-between;align-items:center">今日进度<span id="progPct">0%</span></h3>
@@ -239,7 +255,24 @@ input[type=range]{width:100%;margin:14px 0 6px;accent-color:var(--red)}
       <div class="cn-note" id="essayCn"></div>
     </div>
     <button class="cta" id="startBtn">开始今日学习</button>
+    <div class="panel pomo">
+      <h3>番茄学习法<span id="pomoStatus">未开始</span></h3>
+      <div class="pomo-time" id="pomoDisplay">25:00</div>
+      <div class="pomo-set">
+        <label>专注 <input type="number" id="workMin" min="1" max="90" value="25"> 分钟</label>
+      </div>
+      <button class="act-btn btn-main" id="pomoStart">开始专注</button>
+    </div>
   </section>
+
+  <!-- 番茄休息提示弹窗 -->
+  <div id="pomoMask">
+    <div class="pomo-pop">
+      <div class="em">🌿</div>
+      <div class="msg" id="pomoMsg"></div>
+      <button class="act-btn btn-main" id="pomoClose" style="width:100%">知道了</button>
+    </div>
+  </div>
 
   <!-- 学习流程（独立全屏，覆盖 Tab） -->
   <section class="view" id="view-study">
@@ -375,9 +408,27 @@ function load(){
     const raw = localStorage.getItem(KEY);
     if(raw) return JSON.parse(raw);
   }catch(e){}
-  return { settings:{dailyNew:20, rate:0.9}, ws:{}, checkins:{}, todayDone:{date:'', n:0} };
+  return { settings:{dailyNew:20, rate:0.9}, ws:{}, checkins:{}, todayDone:{date:'', n:0}, stats:{total:0,today:0,day:''} };
 }
 function save(){ localStorage.setItem(KEY, JSON.stringify(DB)); }
+
+/* ---------- 学习时长统计 ---------- */
+function ensureStatsDay(){
+  const t=todayStr();
+  if(!DB.stats) DB.stats={total:0,today:0,day:t};
+  if(DB.stats.day!==t){ DB.stats.today=0; DB.stats.day=t; }
+}
+function addStudySeconds(n){
+  ensureStatsDay();
+  DB.stats.total+=Math.round(n); DB.stats.today+=Math.round(n); save();
+}
+function fmtDur(sec){
+  sec=Math.floor(sec);
+  const hh=Math.floor(sec/3600), mm=Math.floor(sec%3600/60);
+  if(hh>0) return hh+' 小时 '+mm+' 分钟';
+  return mm+' 分钟';
+}
+
 
 /* ---------- 日期工具 ---------- */
 function dayStart(d=new Date()){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
@@ -407,13 +458,19 @@ function dueReviewWords(){
   for(const w in DB.ws){ const s=DB.ws[w]; if(s.lv>=0 && s.lv<=4 && s.due<=t0) out.push(w); }
   return out;
 }
-// 今日新词：按词库顺序取前 N 个未学词
-function newWordsToday(){
-  const n = Math.max(1, DB.settings.dailyNew|0);
-  const out=[];
-  for(const [w] of WORDLIST){ if(out.length>=n) break; if(st(w).lv===-1) out.push(w); }
-  return out;
+// 今日新词批次：固化到当天，退出再进接着学
+function ensureTodayBatch(){
+  const t = todayStr();
+  if(!DB.today || DB.today.date!==t){
+    const n = Math.max(1, DB.settings.dailyNew|0);
+    const batch=[];
+    for(const [w] of WORDLIST){ if(batch.length>=n) break; if(st(w).lv===-1) batch.push(w); }
+    DB.today = {date:t, batch:batch, recogDone:false, quizQ:null, quizIdx:0};
+    save();
+  }
+  return DB.today;
 }
+function newWordsToday(){ return ensureTodayBatch().batch; }
 function masteredCount(){ let c=0; for(const w in DB.ws) if(DB.ws[w].lv===5) c++; return c; }
 function mistakeWords(){
   return Object.keys(DB.ws).filter(w=>DB.ws[w].mis)
@@ -459,11 +516,14 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>show
    首页渲染
    ============================================================ */
 function renderHome(){
+  const tb = ensureTodayBatch();
   const review = dueReviewWords().length;
-  const fresh = newWordsToday().length;
+  const fresh = tb.batch.length;
   const done = (DB.todayDone.date===todayStr())? DB.todayDone.n : 0;
   const total = review + fresh;
-  const pct = total? Math.min(100, Math.round(done/total*100)) : (review+fresh===0?100:0);
+  const pct = total? Math.min(100, Math.round(done/total*100)) : 100;
+  const quizDone = tb.quizQ && tb.quizIdx>=tb.quizQ.length;
+  const allDone = review===0 && tb.recogDone && !!quizDone;
   $('#streakNum').textContent = calcStreak();
   $('#stReview').textContent = review;
   $('#stNew').textContent = fresh;
@@ -478,10 +538,13 @@ function renderHome(){
   const ei = essayIndex();
   $('#essayDay').textContent = 'Day ' + (ei + 1) + ' / 60';
   $('#essayEn').textContent = SENTENCES[ei][0];
+  ensureStatsDay();
+  $('#studyTotal').textContent = fmtDur(DB.stats.total);
+  $('#studyToday').textContent = fmtDur(DB.stats.today);
   $('#essayCn').textContent = SENTENCES[ei][1];
   const btn = $('#startBtn');
-  if(review===0 && fresh===0){ btn.textContent='今日已全部完成 ✓'; btn.classList.add('gray'); }
-  else { btn.textContent = review>0 ? '开始今日学习（先复习）' : '开始今日学习'; btn.classList.remove('gray'); }
+  if(allDone){ btn.textContent='今日已全部完成 ✓'; btn.classList.add('gray'); }
+  else { btn.textContent = review>0 ? '开始学习（先复习）' : '开始学习'; btn.classList.remove('gray'); }
 }
 $('#startBtn').addEventListener('click', startStudy);
 
@@ -494,19 +557,79 @@ $('#startBtn').addEventListener('click', startStudy);
    newquiz 今日新词测试（题型随机）
    done    完成 */
 let flow = null;
+let cardStart = 0;
 $('#studyBack').onclick=()=>{ show('home'); };
+
+/* ===== 番茄学习法 ===== */
+const BREAK_MSGS = [
+  "🧘 专注结束啦！起身接杯水，走到窗边远眺 6 米外 20 秒，让眼睛歇一歇～ 时间到马上回来，下一个番茄在等你！",
+  "☕️ 休息一下！伸个懒腰、转转脖子，别再盯屏幕。深呼吸 3 次放松肩颈，结束立刻回来打卡哦！",
+  "🌿 到点休息！看看远处的绿色植物，肩膀慢慢绕两圈。休息完就回来，不许偷偷刷手机～",
+  "🚶 大脑要充电啦！去倒杯水、上个厕所，活动一下僵硬的腿。休息完马上回来，效率翻倍！",
+  "👀 眼睛辛苦了！闭眼转转眼球，或望向窗外最远的地方。回来接着背单词，四级又近一步！",
+  "🧃 站起来动一动！喝口水、拉伸一下，把紧绷的肩膀松开。铃一响就回桌前，别跑远啦～",
+  "🌇 短暂放空！看看窗外天色，做 3 次深呼吸。准备好就回来，我们继续下一轮专注！",
+  "🧘‍♂️ 这一段辛苦了！耸耸肩、晃晃头，给大脑一个缓冲。休息好立刻回来，胜利在望！"
+];
+let pomo = {run:false, remain:0, t:null, wm:25};
+function pomoInit(){
+  pomo.wm = DB.settings.workMin || 25;
+  $('#workMin').value = pomo.wm;
+  pomo.remain = pomo.wm*60;
+  pomoRender();
+}
+function pomoRender(){
+  const m = String(Math.floor(pomo.remain/60)).padStart(2,'0');
+  const s = String(pomo.remain%60).padStart(2,'0');
+  $('#pomoDisplay').textContent = m+':'+s;
+  $('#pomoStatus').textContent = pomo.run ? '专注中' : '未开始';
+  $('#pomoStart').textContent = pomo.run ? '暂停' : (pomo.remain < pomo.wm*60 ? '继续' : '开始专注');
+}
+function pomoPop(msgs){
+  $('#pomoMsg').textContent = msgs[Math.floor(Math.random()*msgs.length)];
+  $('#pomoMask').classList.add('show');
+}
+// 调节专注时长：未运行时立即更新倒计时，不再固定 25 分钟
+$('#workMin').addEventListener('input', ()=>{
+  if(pomo.run) return;
+  pomo.wm = Math.max(1, (+$('#workMin').value)||25);
+  DB.settings.workMin = pomo.wm; save();
+  pomo.remain = pomo.wm*60;
+  pomoRender();
+});
+$('#pomoStart').onclick = ()=>{
+  if(!pomo.run){
+    pomo.wm = Math.max(1, (+$('#workMin').value)||25);
+    DB.settings.workMin = pomo.wm; save();
+    pomo.run = true; pomo.t = setInterval(pomoTick, 1000);
+  } else { pomo.run=false; clearInterval(pomo.t); }
+  pomoRender();
+};
+function pomoTick(){
+  pomo.remain--;
+  addStudySeconds(1);
+  if(pomo.remain<=0){
+    pomo.remain = 0; pomo.run=false; clearInterval(pomo.t);
+    pomoPop(BREAK_MSGS);
+    pomo.remain = pomo.wm*60; // 结束后复位，准备下一轮
+  }
+  pomoRender();
+}
+$('#pomoClose').onclick = ()=>$('#pomoMask').classList.remove('show');
+$('#pomoMask').onclick = e=>{ if(e.target.id==='pomoMask') $('#pomoMask').classList.remove('show'); };
+pomoInit();
+
 function startStudy(){
+  const tb = ensureTodayBatch();
   const review = dueReviewWords();
-  const fresh = newWordsToday();
-  // 错题穿插：复习词+新词总量的约 25%
-  const misAvail = mistakeWords().filter(w=>!review.includes(w)&&!fresh.includes(w));
-  const misN = Math.round((review.length+fresh.length)*0.25);
+  const misAvail = mistakeWords().filter(w=>!review.includes(w)&&!tb.batch.includes(w));
+  const misN = Math.round((review.length+tb.batch.length)*0.25);
   shuffle(misAvail);
   flow = {
-    stage: review.length ? 'review' : (fresh.length ? 'recog' : 'done'),
+    stage: review.length ? 'review' : (tb.recogDone ? 'newquiz' : 'recog'),
     reviewQ: shuffle(review.concat(misAvail.slice(0, misN))),
-    fresh: fresh.slice(), fi: 0,
-    newQ: [], qi: 0,
+    fresh: tb.batch.slice(), fi: 0,
+    newQ: tb.quizQ ? tb.quizQ.slice() : [], qi: tb.quizIdx||0,
     correct: 0, wrong: 0
   };
   show('study');
@@ -517,24 +640,32 @@ function findWord(w){ return WORDLIST.find(x=>x[0]===w); }
 
 /* 阶段推进：当前队列完成后进入下一阶段 */
 function pump(){
+  const tb = DB.today;
   if(flow.stage==='review'){
     if(flow.qi < flow.reviewQ.length){ showQuiz(flow.reviewQ, flow.qi); return; }
-    flow.qi=0; flow.stage = flow.fresh.length ? 'recog' : 'done';
+    flow.qi=0; flow.stage = tb.recogDone ? 'newquiz' : 'recog';
   }
   if(flow.stage==='recog'){
+    // 续接：从第一个还没认过的词开始
+    flow.fi = flow.fresh.findIndex(w=>st(w).lv===-1);
+    if(flow.fi<0) flow.fi = flow.fresh.length;
     if(flow.fi < flow.fresh.length){ showRecognition(); return; }
-    flow.newQ = shuffle(flow.fresh.slice()); flow.qi=0;
+    tb.recogDone = true;
+    if(!tb.quizQ){ tb.quizQ = shuffle(flow.fresh.slice()); }
+    tb.quizIdx = 0; save();
+    flow.newQ = tb.quizQ.slice(); flow.qi = 0;
     flow.stage = flow.newQ.length ? 'newquiz' : 'done';
   }
   if(flow.stage==='newquiz'){
-    if(flow.qi < flow.newQ.length){ showQuiz(flow.newQ, flow.qi); return; }
-    flow.stage='done';
+    if(!tb.quizQ || tb.quizIdx >= tb.quizQ.length){ flow.stage='done'; }
+    else { flow.qi = tb.quizIdx; showQuiz(tb.quizQ, tb.quizIdx); return; }
   }
   finishStudy();
 }
 
 /* --- 认词环节（新词） --- */
 function showRecognition(){
+  cardStart=Date.now();
   const box=$('#studyBox');
   if(flow.fi>=flow.fresh.length){ pump(); return; }
   const w = flow.fresh[flow.fi];
@@ -562,6 +693,7 @@ function showRecognition(){
   $('#flash').onclick=()=>{$('#flash').classList.toggle('flipped');};
   $('#knownBtn').onclick=()=>{
     // 认词通过：新词进入第 1 天复习节点
+    addStudySeconds(Math.min(120, Math.round((Date.now()-cardStart)/1000)));
     DB.ws[w] = {lv:0, due:dueTimestamp(1), err:st(w).err, streak:0, mis:st(w).mis, lw:st(w).lw};
     save(); bumpDone();
     flow.fi++; pump();
@@ -570,6 +702,7 @@ function showRecognition(){
 
 /* --- 测试环节 --- */
 function showQuiz(queue, idx){
+  cardStart=Date.now();
   const box=$('#studyBox');
   const w = queue[idx];
   const [,ph,mn] = findWord(w);
@@ -614,6 +747,7 @@ function showQuiz(queue, idx){
 
 /* 测试作答：按遗忘曲线推进 / 错题回退 */
 function answerQuiz(w, right){
+  addStudySeconds(Math.min(120, Math.round((Date.now()-cardStart)/1000)));
   const s = DB.ws[w] || {lv:-1, due:0, err:0, streak:0, mis:false, lw:0};
   if(right){
     flow.correct++;
@@ -635,6 +769,7 @@ function answerQuiz(w, right){
   }
   DB.ws[w]=s; save(); bumpDone();
   flow.qi++;
+  if(flow.stage==='newquiz'){ DB.today.quizIdx = flow.qi; save(); }
   setTimeout(pump, right?650:1500);
 }
 
