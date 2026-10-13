@@ -1,11 +1,12 @@
 ﻿/* 鍥涚骇鍗曡瘝 PWA Service Worker 鈥斺€?闈欐€佽祫婧愮紦瀛橈紝绂荤嚎鍙敤 */
-const CACHE = 'cet4-v15';
+const CACHE = 'cet4-v17';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './cover.png'
 ];
 
 /* 瀹夎锛氶缂撳瓨鏍稿績璧勬簮 */
@@ -40,6 +41,7 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
+
 
 
 
