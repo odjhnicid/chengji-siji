@@ -88,6 +88,15 @@ body{
 .cta:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
 .cta.gray{background:var(--ink2);border-color:var(--ink)}
 
+
+.study-back{position:fixed;top:calc(var(--safe-t)+12px);left:14px;z-index:45;width:40px;height:40px;border-radius:50%;
+  border:1.5px solid var(--ink);background:var(--card);font-size:19px;color:var(--ink);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;box-shadow:2px 2px 0 var(--line)}
+.study-back:active{transform:scale(.92)}
+.pos{display:inline-block;font-family:var(--serif);font-size:11px;font-weight:700;color:var(--red);
+  border:1px solid var(--red);border-radius:4px;padding:0 4px;margin-right:4px;line-height:1.6;vertical-align:middle}
+.pos.guess{color:var(--ink2);border-color:var(--ink3)}
+
 /* ---------- 学习 / 流程 ---------- */
 #studyView{padding-top:calc(16px + var(--safe-t))}
 .flow-hint{color:var(--ink2);font-size:14px;text-align:center;margin-bottom:16px;font-family:var(--serif)}
@@ -234,6 +243,7 @@ input[type=range]{width:100%;margin:14px 0 6px;accent-color:var(--red)}
 
   <!-- 学习流程（独立全屏，覆盖 Tab） -->
   <section class="view" id="view-study">
+    <button id="studyBack" class="study-back" aria-label="返回" type="button">&#8592;</button>
     <div id="studyBox"></div>
   </section>
 
@@ -484,6 +494,7 @@ $('#startBtn').addEventListener('click', startStudy);
    newquiz 今日新词测试（题型随机）
    done    完成 */
 let flow = null;
+$('#studyBack').onclick=()=>{ show('home'); };
 function startStudy(){
   const review = dueReviewWords();
   const fresh = newWordsToday();
@@ -540,7 +551,7 @@ function showRecognition(){
         <div class="hint-tap">点卡片翻转</div>
       </div>
       <div class="face back">
-        <div class="word-mean">${mn}</div>
+        <div class="word-mean">${meaningHtml(w,mn)}</div>
         <div class="hint-tap">再点翻回</div>
       </div>
     </div></div>
@@ -644,6 +655,27 @@ $('#doneHome').onclick=()=>{ $('#doneMask').classList.remove('show'); show('home
 /* ============================================================
    单词表
    ============================================================ */
+
+/* 词性标注：已有前缀的标红，其余按词缀/中文释义推断 */
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function guessPos(w,mn){
+  const lw=w.toLowerCase();
+  if(/使/.test(mn)) return 'v.';
+  if(/(tion|sion|ment|ness|ity|ance|ence|dom|ship|hood|ism|er|or|ee|graph)$/.test(lw)) return 'n.';
+  if(/(able|ible|ful|less|ous|ive|al|ic|ical|ary|ish)$/.test(lw)) return 'adj.';
+  if(/ly$/.test(lw)) return 'adv.';
+  if(/(ize|ise|ify|en|ate)$/.test(lw)) return 'v.';
+  if(/的[；;，、]|的$/.test(mn)) return 'adj.';
+  return 'n.';
+}
+function meaningHtml(w,mn){
+  mn=esc(mn.trim());
+  if(/^(n|v|vt|vi|adj|adv|prep|conj|pron|num|art|int|aux)\./i.test(mn)){
+    return mn.replace(/(n|v|vt|vi|adj|adv|prep|conj|pron|num|art|int|aux)\./gi,'<span class="pos">$&</span>');
+  }
+  return '<span class="pos guess">'+guessPos(w,mn)+'</span> '+mn;
+}
+
 let wordFilter='all', wordKw='';
 let wItems=[], wRendered=0;
 const W_PAGE=150;
@@ -673,7 +705,7 @@ function appendWords(){
   for(const it of chunk){
     const li=document.createElement('li');
     li.className='witem';
-    li.innerHTML=`<div class="l"><div class="en">${it.w}</div><div class="de">${it.mn}</div></div>`
+    li.innerHTML=`<div class="l"><div class="en">${it.w}</div><div class="de">${meaningHtml(it.w,it.mn)}</div></div>`
       + (it.mis?'<span class="tag err">错题</span>':'')
       + `<span class="tag ${it.tag[1]}">${it.tag[0]}</span>`;
     li.onclick=()=>openDetail(it.w);
@@ -701,7 +733,7 @@ $('#filterChips').addEventListener('click',e=>{
 let curWord='';
 function openDetail(w){
   const [,ph,mn]=findWord(w); curWord=w;
-  $('#dEn').textContent=w; $('#dPh').textContent='/'+ph+'/'; $('#dMn').textContent=mn;
+  $('#dEn').textContent=w; $('#dPh').textContent='/'+ph+'/'; $('#dMn').innerHTML=meaningHtml(w,mn);
   const s=st(w);
   $('#dMis').textContent = s.mis ? '移出错题本' : '加入错题本';
   $('#wordMask').classList.add('show');
